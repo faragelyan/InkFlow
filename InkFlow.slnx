@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="InkFlow.API/InkFlow.API.csproj" />
+  <Project Path="InkFlow.Application/InkFlow.Application.csproj" />
+  <Project Path="InkFlow.Domain/InkFlow.Domain.csproj" />
+  <Project Path="InkFlow.Infrastructure/InkFlow.Infrastructure.csproj" />
+</Solution>
