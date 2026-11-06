@@ -8,11 +8,9 @@ public class Notification
     public bool IsRead { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // Recipient User
     public Guid ReceiverUserId { get; set; }
     public AppUser Receiver { get; set; } = null!;
 
-    // Optional References
     public Guid? ArticleId { get; set; }
     public Article? Article { get; set; }
 
