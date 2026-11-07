@@ -12,6 +12,8 @@ public class Article
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
+    public DateTime? PublishedAt { get; set; }
+    public DateTime? ArchivedAt { get; set; }
 
     // Author
     public Guid UserId { get; set; }

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 
 namespace InkFlow.Domain;
 
@@ -12,6 +12,7 @@ public class AppUser : IdentityUser<Guid>
     public DateTime? UpdatedAt { get; set; }
     public bool IsActive { get; set; } = true;
     public bool IsDeleted { get; set; } = false;
+    public DateTime? DeletedAt { get; set; }
 
     public ICollection<Article> Articles { get; set; } = new List<Article>();
     public ICollection<Comment> Comments { get; set; } = new List<Comment>();
