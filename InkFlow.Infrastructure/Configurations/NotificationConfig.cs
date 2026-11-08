@@ -28,18 +28,22 @@ public class NotificationConfig : IEntityTypeConfiguration<Notification>
         // Navigation properties
         builder.HasOne(x => x.Receiver)
             .WithMany(u => u.Notifications)
-            .HasForeignKey(x => x.ReceiverUserId);
+            .HasForeignKey(x => x.ReceiverUserId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(x => x.Actor)
             .WithMany()
-            .HasForeignKey(x => x.ActorUserId);
+            .HasForeignKey(x => x.ActorUserId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.Article)
             .WithMany(a => a.Notifications)
-            .HasForeignKey(x => x.ArticleId);
+            .HasForeignKey(x => x.ArticleId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(x => x.Comment)
             .WithMany(c => c.Notifications)
-            .HasForeignKey(x => x.CommentId);
+            .HasForeignKey(x => x.CommentId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

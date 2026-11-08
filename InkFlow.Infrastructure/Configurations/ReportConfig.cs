@@ -23,14 +23,17 @@ public class ReportConfig : IEntityTypeConfiguration<Report>
         // Navigation properties
         builder.HasOne(x => x.Reporter)
             .WithMany(u => u.Reports)
-            .HasForeignKey(x => x.ReporterUserId);
+            .HasForeignKey(x => x.ReporterUserId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.Article)
             .WithMany(a => a.Reports)
-            .HasForeignKey(x => x.ArticleId);
+            .HasForeignKey(x => x.ArticleId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(x => x.Comment)
             .WithMany(c => c.Reports)
-            .HasForeignKey(x => x.CommentId);
+            .HasForeignKey(x => x.CommentId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

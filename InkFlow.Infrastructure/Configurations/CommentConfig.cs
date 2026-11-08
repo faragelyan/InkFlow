@@ -28,14 +28,20 @@ public class CommentConfig : IEntityTypeConfiguration<Comment>
         // Navigation properties
         builder.HasOne(x => x.User)
             .WithMany(u => u.Comments)
-            .HasForeignKey(x => x.UserId);
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.Article)
             .WithMany(a => a.Comments)
-            .HasForeignKey(x => x.ArticleId);
+            .HasForeignKey(x => x.ArticleId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(x => x.ParentComment)
             .WithMany(c => c.Replies)
-            .HasForeignKey(x => x.ParentCommentId);
+            .HasForeignKey(x => x.ParentCommentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Exclude soft-deleted comments from all queries automatically
+        builder.HasQueryFilter(x => !x.IsDeleted);
     }
 }

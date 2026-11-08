@@ -17,10 +17,12 @@ public class ArticleBookmarkConfig : IEntityTypeConfiguration<ArticleBookmark>
         // Navigation properties
         builder.HasOne(x => x.User)
             .WithMany(u => u.ArticleBookmarks)
-            .HasForeignKey(x => x.UserId);
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(x => x.Article)
             .WithMany(a => a.ArticleBookmarks)
-            .HasForeignKey(x => x.ArticleId);
+            .HasForeignKey(x => x.ArticleId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

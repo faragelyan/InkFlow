@@ -34,6 +34,7 @@ public class ArticleConfig : IEntityTypeConfiguration<Article>
         // Navigation properties
         builder.HasOne(x => x.User)
             .WithMany(x => x.Articles)
-            .HasForeignKey(x => x.UserId);
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

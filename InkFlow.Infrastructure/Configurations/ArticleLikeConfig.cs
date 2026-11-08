@@ -17,10 +17,12 @@ public class ArticleLikeConfig : IEntityTypeConfiguration<ArticleLike>
         // Navigation properties
         builder.HasOne(x => x.User)
             .WithMany(u => u.ArticleLikes)
-            .HasForeignKey(x => x.UserId);
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(x => x.Article)
             .WithMany(a => a.ArticleLikes)
-            .HasForeignKey(x => x.ArticleId);
+            .HasForeignKey(x => x.ArticleId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -16,10 +16,12 @@ public class ArticleTopicConfig : IEntityTypeConfiguration<ArticleTopic>
         // Navigation properties
         builder.HasOne(x => x.Article)
             .WithMany(a => a.ArticleTopics)
-            .HasForeignKey(x => x.ArticleId);
+            .HasForeignKey(x => x.ArticleId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(x => x.Topic)
             .WithMany(t => t.ArticleTopics)
-            .HasForeignKey(x => x.TopicId);
+            .HasForeignKey(x => x.TopicId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -15,7 +15,10 @@ public class AppUserConfig : IEntityTypeConfiguration<AppUser>
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt);
         builder.Property(x => x.IsActive).IsRequired();
-        builder.Property(x => x.IsDeleted).IsRequired();
+        builder.Property(x => x.IsDeleted).IsRequired().HasDefaultValue(false);
         builder.Property(x => x.DeletedAt);
+
+        // Exclude soft-deleted users from all queries automatically
+        builder.HasQueryFilter(x => !x.IsDeleted);
     }
 }

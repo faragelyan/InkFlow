@@ -17,10 +17,12 @@ public class FollowConfig : IEntityTypeConfiguration<Follow>
         // Navigation properties
         builder.HasOne(x => x.Follower)
             .WithMany(u => u.Followings)
-            .HasForeignKey(x => x.FollowerId);
+            .HasForeignKey(x => x.FollowerId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.Following)
             .WithMany(u => u.Followers)
-            .HasForeignKey(x => x.FollowingId);
+            .HasForeignKey(x => x.FollowingId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

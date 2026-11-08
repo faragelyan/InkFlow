@@ -17,10 +17,12 @@ public class CommentLikeConfig : IEntityTypeConfiguration<CommentLike>
         // Navigation properties
         builder.HasOne(x => x.User)
             .WithMany(u => u.CommentLikes)
-            .HasForeignKey(x => x.UserId);
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(x => x.Comment)
             .WithMany(c => c.CommentLikes)
-            .HasForeignKey(x => x.CommentId);
+            .HasForeignKey(x => x.CommentId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
