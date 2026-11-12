@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace InkFlow.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261108095715_InitialCreate")]
+    [Migration("20261112225839_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -628,7 +628,7 @@ namespace InkFlow.Infrastructure.Migrations
                     b.HasOne("InkFlow.Domain.AppUser", "User")
                         .WithMany("ArticleBookmarks")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Article");
@@ -647,7 +647,7 @@ namespace InkFlow.Infrastructure.Migrations
                     b.HasOne("InkFlow.Domain.AppUser", "User")
                         .WithMany("ArticleLikes")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Article");
@@ -730,7 +730,7 @@ namespace InkFlow.Infrastructure.Migrations
                     b.HasOne("InkFlow.Domain.AppUser", "User")
                         .WithMany("CommentLikes")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Comment");
@@ -778,7 +778,7 @@ namespace InkFlow.Infrastructure.Migrations
                     b.HasOne("InkFlow.Domain.AppUser", "Receiver")
                         .WithMany("Notifications")
                         .HasForeignKey("ReceiverUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Actor");

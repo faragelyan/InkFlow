@@ -29,7 +29,7 @@ public class NotificationConfig : IEntityTypeConfiguration<Notification>
         builder.HasOne(x => x.Receiver)
             .WithMany(u => u.Notifications)
             .HasForeignKey(x => x.ReceiverUserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.Actor)
             .WithMany()

@@ -18,7 +18,7 @@ public class ArticleLikeConfig : IEntityTypeConfiguration<ArticleLike>
         builder.HasOne(x => x.User)
             .WithMany(u => u.ArticleLikes)
             .HasForeignKey(x => x.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.Article)
             .WithMany(a => a.ArticleLikes)
