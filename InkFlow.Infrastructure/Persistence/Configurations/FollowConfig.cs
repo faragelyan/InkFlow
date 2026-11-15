@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using InkFlow.Domain;
 
-namespace InkFlow.Infrastructure;
+namespace InkFlow.Infrastructure.Persistence.Configurations;
 
 public class FollowConfig : IEntityTypeConfiguration<Follow>
 {

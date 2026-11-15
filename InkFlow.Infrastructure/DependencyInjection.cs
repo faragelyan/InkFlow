@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using InkFlow.Domain;
-using InkFlow.Infrastructure.Persistence;
+using InkFlow.Infrastructure.Persistence.Context;
 
 namespace InkFlow.Infrastructure;
 

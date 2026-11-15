@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using InkFlow.Domain;
 
-namespace InkFlow.Infrastructure.Persistence;
+namespace InkFlow.Infrastructure.Persistence.Context;
 
 public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
 {
