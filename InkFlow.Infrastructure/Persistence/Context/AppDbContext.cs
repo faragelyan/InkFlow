@@ -23,6 +23,7 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<Report> Reports => Set<Report>();
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<Topic> Topics => Set<Topic>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

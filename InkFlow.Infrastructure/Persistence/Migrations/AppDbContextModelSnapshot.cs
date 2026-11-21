@@ -378,6 +378,39 @@ namespace InkFlow.Infrastructure.Persistence.Migrations
                     b.ToTable("Notifications");
                 });
 
+            modelBuilder.Entity("InkFlow.Domain.RefreshToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedOnUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresOnUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("RevokedOnUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RefreshTokens", (string)null);
+                });
+
             modelBuilder.Entity("InkFlow.Domain.Report", b =>
                 {
                     b.Property<Guid>("ReportId")
@@ -787,6 +820,17 @@ namespace InkFlow.Infrastructure.Persistence.Migrations
                     b.Navigation("Receiver");
                 });
 
+            modelBuilder.Entity("InkFlow.Domain.RefreshToken", b =>
+                {
+                    b.HasOne("InkFlow.Domain.AppUser", "User")
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("InkFlow.Domain.Report", b =>
                 {
                     b.HasOne("InkFlow.Domain.Article", "Article")
@@ -880,6 +924,8 @@ namespace InkFlow.Infrastructure.Persistence.Migrations
                     b.Navigation("Followings");
 
                     b.Navigation("Notifications");
+
+                    b.Navigation("RefreshTokens");
 
                     b.Navigation("Reports");
                 });

@@ -26,4 +26,5 @@ public class AppUser : IdentityUser<Guid>
 
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     public ICollection<Report> Reports { get; set; } = new List<Report>();
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }
