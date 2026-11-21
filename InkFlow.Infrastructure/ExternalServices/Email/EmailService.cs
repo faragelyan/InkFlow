@@ -25,6 +25,13 @@ public class EmailService : IEmailService
         return SendEmailAsync(to, subject, body, cancellationToken);
     }
 
+    public Task SendEmailConfirmationEmailAsync(string to, string confirmationLink, CancellationToken cancellationToken = default)
+    {
+        var subject = "Confirm your InkFlow Email";
+        var body = $"<p>Click <a href=\"{confirmationLink}\">here</a> to confirm your email address.</p>";
+        return SendEmailAsync(to, subject, body, cancellationToken);
+    }
+
     public Task SendPasswordResetEmailAsync(string to, string resetLink, CancellationToken cancellationToken = default)
     {
         var subject = "Reset your InkFlow Password";
