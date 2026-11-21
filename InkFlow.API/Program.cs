@@ -58,9 +58,33 @@ if (app.Environment.IsDevelopment())
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "InkFlow API v1");
         c.RoutePrefix = "swagger";
     });
+
+    // Automatically open Swagger in default browser on startup
+    app.Lifetime.ApplicationStarted.Register(() =>
+    {
+        try
+        {
+            var targetUrl = app.Urls.FirstOrDefault(u => u.StartsWith("https"))
+                            ?? app.Urls.FirstOrDefault()
+                            ?? "https://localhost:7134";
+
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = $"{targetUrl.TrimEnd('/')}/swagger",
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+            // Fallback gracefully if process launch is not supported
+        }
+    });
 }
 
 app.UseHttpsRedirection();
+
+// Redirect root to Swagger without showing in Swagger documentation
+app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
 app.UseAuthentication();
 app.UseAuthorization();

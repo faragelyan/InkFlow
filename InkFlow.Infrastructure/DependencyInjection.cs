@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using InkFlow.Application.Interfaces.ExternalServices;
 using InkFlow.Application.Interfaces.Repositories;
-using InkFlow.Application.Interfaces.Services;
+using InkFlow.Application.Features.Auth.Interfaces;
 using InkFlow.Domain;
 using InkFlow.Infrastructure.Authentication;
 using InkFlow.Infrastructure.ExternalServices.Email;

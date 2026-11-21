@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using InkFlow.Application.Features.Auth.DTOs.Requests;
 using InkFlow.Application.Features.Auth.DTOs.Responses;
-using InkFlow.Application.Interfaces.Services;
+using InkFlow.Application.Features.Auth.Interfaces;
 
 namespace InkFlow.API.Controllers;
 

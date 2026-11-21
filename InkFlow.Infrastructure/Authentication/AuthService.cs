@@ -1,12 +1,13 @@
 using System.Security.Claims;
+using FluentValidation;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using InkFlow.Application.Common.Results;
 using InkFlow.Application.Features.Auth.DTOs.Requests;
 using InkFlow.Application.Features.Auth.DTOs.Responses;
+using InkFlow.Application.Features.Auth.Interfaces;
 using InkFlow.Application.Interfaces.ExternalServices;
-using InkFlow.Application.Interfaces.Services;
 using InkFlow.Domain;
 using InkFlow.Infrastructure.Persistence.Context;
 
@@ -20,6 +21,10 @@ public class AuthService : IAuthService
     private readonly IEmailService _emailService;
     private readonly AppDbContext _context;
     private readonly JwtOptions _jwtOptions;
+    private readonly IValidator<RegisterRequest> _registerValidator;
+    private readonly IValidator<LoginRequest> _loginValidator;
+    private readonly IValidator<RefreshTokenRequest> _refreshTokenValidator;
+    private readonly IValidator<RevokeTokenRequest> _revokeTokenValidator;
 
     public AuthService(
         UserManager<AppUser> userManager,
@@ -27,7 +32,11 @@ public class AuthService : IAuthService
         IJwtProvider jwtProvider,
         IEmailService emailService,
         AppDbContext context,
-        IOptions<JwtOptions> jwtOptions)
+        IOptions<JwtOptions> jwtOptions,
+        IValidator<RegisterRequest> registerValidator,
+        IValidator<LoginRequest> loginValidator,
+        IValidator<RefreshTokenRequest> refreshTokenValidator,
+        IValidator<RevokeTokenRequest> revokeTokenValidator)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -35,10 +44,20 @@ public class AuthService : IAuthService
         _emailService = emailService;
         _context = context;
         _jwtOptions = jwtOptions.Value;
+        _registerValidator = registerValidator;
+        _loginValidator = loginValidator;
+        _refreshTokenValidator = refreshTokenValidator;
+        _revokeTokenValidator = revokeTokenValidator;
     }
 
     public async Task<Result<AuthResponse>> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
     {
+        var validationResult = await _registerValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            return Result<AuthResponse>.Failure(validationResult.Errors.Select(e => e.ErrorMessage));
+        }
+
         var existingUser = await _userManager.FindByEmailAsync(request.Email);
         if (existingUser != null)
         {
@@ -77,8 +96,8 @@ public class AuthService : IAuthService
         await _context.RefreshTokens.AddAsync(refreshToken, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Async welcome email
-        _ = _emailService.SendWelcomeEmailAsync(user.Email, user.DisplayName, cancellationToken);
+        // Background welcome email (not cancelled by request abort)
+        _ = _emailService.SendWelcomeEmailAsync(user.Email, user.DisplayName, CancellationToken.None);
 
         var userDto = new UserDto(user.Id, user.Email, user.DisplayName, user.ProfileImageUrl, roles);
         var response = new AuthResponse(
@@ -94,6 +113,12 @@ public class AuthService : IAuthService
 
     public async Task<Result<AuthResponse>> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
+        var validationResult = await _loginValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            return Result<AuthResponse>.Failure(validationResult.Errors.Select(e => e.ErrorMessage));
+        }
+
         var user = await _userManager.FindByEmailAsync(request.Email);
         if (user == null || user.IsDeleted || !user.IsActive)
         {
@@ -127,6 +152,12 @@ public class AuthService : IAuthService
 
     public async Task<Result<AuthResponse>> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default)
     {
+        var validationResult = await _refreshTokenValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            return Result<AuthResponse>.Failure(validationResult.Errors.Select(e => e.ErrorMessage));
+        }
+
         var principal = _jwtProvider.GetPrincipalFromExpiredToken(request.AccessToken);
         if (principal == null)
         {
@@ -178,6 +209,12 @@ public class AuthService : IAuthService
 
     public async Task<Result> RevokeTokenAsync(RevokeTokenRequest request, CancellationToken cancellationToken = default)
     {
+        var validationResult = await _revokeTokenValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            return Result.Failure(validationResult.Errors.Select(e => e.ErrorMessage));
+        }
+
         var refreshToken = await _context.RefreshTokens
             .FirstOrDefaultAsync(rt => rt.Token == request.RefreshToken, cancellationToken);
 

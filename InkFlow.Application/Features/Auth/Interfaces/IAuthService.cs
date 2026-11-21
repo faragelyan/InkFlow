@@ -2,7 +2,7 @@ using InkFlow.Application.Common.Results;
 using InkFlow.Application.Features.Auth.DTOs.Requests;
 using InkFlow.Application.Features.Auth.DTOs.Responses;
 
-namespace InkFlow.Application.Interfaces.Services;
+namespace InkFlow.Application.Features.Auth.Interfaces;
 
 public interface IAuthService
 {
