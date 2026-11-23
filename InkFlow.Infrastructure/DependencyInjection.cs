@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using InkFlow.Application.Interfaces;
 using InkFlow.Application.Interfaces.ExternalServices;
 using InkFlow.Application.Interfaces.Repositories;
 using InkFlow.Application.Features.Auth.Interfaces;
@@ -13,6 +14,7 @@ using InkFlow.Infrastructure.Authentication;
 using InkFlow.Infrastructure.ExternalServices.Email;
 using InkFlow.Infrastructure.Persistence.Context;
 using InkFlow.Infrastructure.Persistence.Repositories;
+using InkFlow.Infrastructure.Persistence.UnitOfWork;
 
 namespace InkFlow.Infrastructure;
 
@@ -76,6 +78,7 @@ public static class DependencyInjection
 
         // Repository & Services
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IJwtProvider, JwtProvider>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IEmailService, EmailService>();
