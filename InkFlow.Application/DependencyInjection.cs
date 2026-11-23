@@ -1,6 +1,8 @@
 using System.Reflection;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using InkFlow.Application.Features.Articles.Interfaces;
+using InkFlow.Application.Features.Articles.Services;
 using InkFlow.Application.Features.Authors.Interfaces;
 using InkFlow.Application.Features.Authors.Services;
 
@@ -11,6 +13,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
+        services.AddScoped<IArticleService, ArticleService>();
         services.AddScoped<IAuthorService, AuthorService>();
         return services;
     }
