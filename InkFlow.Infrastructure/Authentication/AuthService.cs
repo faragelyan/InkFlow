@@ -250,7 +250,7 @@ public class AuthService : IAuthService
             var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
             var resetLink = $"/reset-password?email={Uri.EscapeDataString(user.Email!)}&token={encodedToken}";
 
-            _ = _emailService.SendPasswordResetEmailAsync(user.Email!, resetLink, CancellationToken.None);
+            await _emailService.SendPasswordResetEmailAsync(user.Email!, resetLink, cancellationToken);
         }
 
         // Always succeed to prevent user enumeration

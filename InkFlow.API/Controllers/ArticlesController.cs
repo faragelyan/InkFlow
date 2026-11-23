@@ -153,6 +153,17 @@ public class ArticlesController : ControllerBase
         return ChangeStatusAsync(articleId, _articleService.ArchiveAsync, cancellationToken);
     }
 
+    [Authorize]
+    [HttpPatch("{articleId:guid}/unarchive")]
+    [ProducesResponseType(typeof(ArticleResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public Task<IActionResult> Unarchive(Guid articleId, CancellationToken cancellationToken)
+    {
+        return ChangeStatusAsync(articleId, _articleService.UnarchiveAsync, cancellationToken);
+    }
+
     private async Task<IActionResult> ChangeStatusAsync(
         Guid articleId,
         Func<Guid, Guid, CancellationToken, Task<InkFlow.Application.Common.Results.Result<ArticleResponse>>> changeStatus,

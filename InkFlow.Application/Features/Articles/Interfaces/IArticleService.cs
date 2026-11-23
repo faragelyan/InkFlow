@@ -40,4 +40,5 @@ public interface IArticleService
     Task<Result<ArticleResponse>> PublishAsync(Guid authorId, Guid articleId, CancellationToken cancellationToken = default);
     Task<Result<ArticleResponse>> UnpublishAsync(Guid authorId, Guid articleId, CancellationToken cancellationToken = default);
     Task<Result<ArticleResponse>> ArchiveAsync(Guid authorId, Guid articleId, CancellationToken cancellationToken = default);
+    Task<Result<ArticleResponse>> UnarchiveAsync(Guid authorId, Guid articleId, CancellationToken cancellationToken = default);
 }

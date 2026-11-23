@@ -191,6 +191,14 @@ public class ArticleService : IArticleService
         return ChangeStatusAsync(authorId, articleId, ArticleStatus.Archived, cancellationToken);
     }
 
+    public Task<Result<ArticleResponse>> UnarchiveAsync(
+        Guid authorId,
+        Guid articleId,
+        CancellationToken cancellationToken = default)
+    {
+        return ChangeStatusAsync(authorId, articleId, ArticleStatus.Published, cancellationToken);
+    }
+
     private async Task<Result<ArticleResponse>> ChangeStatusAsync(
         Guid authorId,
         Guid articleId,
@@ -203,14 +211,6 @@ public class ArticleService : IArticleService
 
         if (article.Status == targetStatus)
             return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article));
-
-        if (article.Status == ArticleStatus.Archived && targetStatus != ArticleStatus.Archived)
-        {
-            var error = targetStatus == ArticleStatus.Published
-                ? ArticleErrors.CannotPublishArchived
-                : ArticleErrors.CannotUnpublishArchived;
-            return Result<ArticleResponse>.Failure(error);
-        }
 
         if (targetStatus == ArticleStatus.Published)
         {

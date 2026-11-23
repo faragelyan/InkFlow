@@ -76,6 +76,9 @@ public static class DependencyInjection
             };
         });
 
+        // Email Configuration
+        services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
+
         // Repository & Services
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, UnitOfWork>();
