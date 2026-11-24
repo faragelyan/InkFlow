@@ -24,6 +24,12 @@ public class CreateArticleValidator : AbstractValidator<CreateArticleRequest>
             .Must(BeAbsoluteHttpUrl)
             .When(request => !string.IsNullOrWhiteSpace(request.CoverImageUrl))
             .WithMessage("Cover image URL must be an absolute HTTP or HTTPS URL.");
+
+        RuleFor(request => request.TopicIds)
+            .Must(ids => ids.Distinct().Count() <= 3).WithMessage("An article cannot have more than 3 topics.");
+
+        RuleFor(request => request.TagIds)
+            .Must(ids => ids.Distinct().Count() <= 10).WithMessage("An article cannot have more than 10 tags.");
     }
 
     private static bool BeAbsoluteHttpUrl(string? value)

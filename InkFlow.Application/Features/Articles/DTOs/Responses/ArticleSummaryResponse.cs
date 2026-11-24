@@ -1,3 +1,5 @@
+using InkFlow.Application.Features.Tags.DTOs.Responses;
+using InkFlow.Application.Features.Topics.DTOs.Responses;
 using InkFlow.Domain;
 
 namespace InkFlow.Application.Features.Articles.DTOs.Responses;
@@ -12,4 +14,6 @@ public class ArticleSummaryResponse
     public string? CoverImageUrl { get; init; }
     public ArticleStatus Status { get; init; }
     public DateTime? PublishedAt { get; init; }
+    public IReadOnlyList<TopicSummaryResponse> Topics { get; init; } = [];
+    public IReadOnlyList<TagSummaryResponse> Tags { get; init; } = [];
 }

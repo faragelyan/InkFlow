@@ -19,6 +19,10 @@ public class ArticleService : IArticleService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IGenericRepository<AppUser> _users;
     private readonly IGenericRepository<Article> _articles;
+    private readonly IGenericRepository<Topic> _topics;
+    private readonly IGenericRepository<Tag> _tags;
+    private readonly IGenericRepository<ArticleTopic> _articleTopics;
+    private readonly IGenericRepository<ArticleTag> _articleTags;
     private readonly IValidator<CreateArticleRequest> _createValidator;
     private readonly IValidator<UpdateArticleRequest> _updateValidator;
 
@@ -30,6 +34,10 @@ public class ArticleService : IArticleService
         _unitOfWork = unitOfWork;
         _users = unitOfWork.GetRepository<AppUser>();
         _articles = unitOfWork.GetRepository<Article>();
+        _topics = unitOfWork.GetRepository<Topic>();
+        _tags = unitOfWork.GetRepository<Tag>();
+        _articleTopics = unitOfWork.GetRepository<ArticleTopic>();
+        _articleTags = unitOfWork.GetRepository<ArticleTag>();
         _createValidator = createValidator;
         _updateValidator = updateValidator;
     }
@@ -65,7 +73,13 @@ public class ArticleService : IArticleService
             Status = ArticleStatus.Draft
         };
 
-        if (!await _articles.AddAsync(article, cancellationToken))
+        var taxonomyResult = await ResolveTaxonomyAsync(request.TopicIds, request.TagIds, cancellationToken);
+        if (taxonomyResult.Error is not null)
+            return Result<ArticleResponse>.Failure(taxonomyResult.Error);
+
+        if (!await _articles.AddAsync(article, cancellationToken)
+            || !await _articleTopics.AddRangeAsync(taxonomyResult.Topics.Select(topicId => new ArticleTopic { ArticleId = articleId, TopicId = topicId }), cancellationToken)
+            || !await _articleTags.AddRangeAsync(taxonomyResult.Tags.Select(tagId => new ArticleTag { ArticleId = articleId, TagId = tagId }), cancellationToken))
             return Result<ArticleResponse>.Failure(ArticleErrors.SaveFailed);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -159,6 +173,21 @@ public class ArticleService : IArticleService
         article.Subtitle = NormalizeOptionalText(request.Subtitle);
         article.Content = request.Content.Trim();
         article.CoverImageUrl = NormalizeOptionalText(request.CoverImageUrl);
+
+        var taxonomyResult = await ResolveTaxonomyAsync(request.TopicIds, request.TagIds, cancellationToken);
+        if (taxonomyResult.Error is not null)
+            return Result<ArticleResponse>.Failure(taxonomyResult.Error);
+
+        var existingTopics = await _articleTopics.GetAllAsync(link => link.ArticleId == articleId, cancellationToken: cancellationToken);
+        var existingTags = await _articleTags.GetAllAsync(link => link.ArticleId == articleId, cancellationToken: cancellationToken);
+
+        if (existingTopics.Count > 0)
+            await _articleTopics.DeleteRangeAsync(existingTopics, cancellationToken);
+        if (existingTags.Count > 0)
+            await _articleTags.DeleteRangeAsync(existingTags, cancellationToken);
+
+        await _articleTopics.AddRangeAsync(taxonomyResult.Topics.Select(topicId => new ArticleTopic { ArticleId = articleId, TopicId = topicId }), cancellationToken);
+        await _articleTags.AddRangeAsync(taxonomyResult.Tags.Select(tagId => new ArticleTag { ArticleId = articleId, TagId = tagId }), cancellationToken);
 
         if (!await _articles.UpdateAsync(article, cancellationToken))
             return Result<ArticleResponse>.Failure(ArticleErrors.UpdateFailed);
@@ -290,5 +319,33 @@ public class ArticleService : IArticleService
             slug = "article";
 
         return $"{slug}-{articleId:N}";
+    }
+
+    private async Task<(IReadOnlyList<Guid> Topics, IReadOnlyList<Guid> Tags, string? Error)> ResolveTaxonomyAsync(
+        IReadOnlyList<Guid> topicIds,
+        IReadOnlyList<Guid> tagIds,
+        CancellationToken cancellationToken)
+    {
+        var distinctTopicIds = topicIds.Distinct().ToList();
+        var distinctTagIds = tagIds.Distinct().ToList();
+
+        if (distinctTopicIds.Count > 3)
+            return ([], [], ArticleErrors.TooManyTopics);
+        if (distinctTagIds.Count > 10)
+            return ([], [], ArticleErrors.TooManyTags);
+
+        foreach (var topicId in distinctTopicIds)
+        {
+            if (!await _topics.ExistsAsync(topic => topic.TopicId == topicId, cancellationToken: cancellationToken))
+                return ([], [], ArticleErrors.InvalidTopics);
+        }
+
+        foreach (var tagId in distinctTagIds)
+        {
+            if (!await _tags.ExistsAsync(tag => tag.TagId == tagId, cancellationToken: cancellationToken))
+                return ([], [], ArticleErrors.InvalidTags);
+        }
+
+        return (distinctTopicIds, distinctTagIds, null);
     }
 }

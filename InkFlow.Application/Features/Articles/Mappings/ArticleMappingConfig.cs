@@ -1,4 +1,8 @@
 using InkFlow.Application.Features.Articles.DTOs.Responses;
+using InkFlow.Application.Features.Tags.DTOs.Responses;
+using InkFlow.Application.Features.Tags.Mappings;
+using InkFlow.Application.Features.Topics.DTOs.Responses;
+using InkFlow.Application.Features.Topics.Mappings;
 using InkFlow.Domain;
 
 namespace InkFlow.Application.Features.Articles.Mappings;
@@ -20,7 +24,9 @@ public static class ArticleMappingConfig
             CreatedAt = article.CreatedAt,
             UpdatedAt = article.UpdatedAt,
             PublishedAt = article.PublishedAt,
-            ArchivedAt = article.ArchivedAt
+            ArchivedAt = article.ArchivedAt,
+            Topics = article.ArticleTopics.Select(link => link.Topic).Where(topic => topic != null).Select(TopicMappingConfig.ToSummaryResponse).ToList(),
+            Tags = article.ArticleTags.Select(link => link.Tag).Where(tag => tag != null).Select(TagMappingConfig.ToSummaryResponse).ToList()
         };
     }
 
@@ -35,7 +41,9 @@ public static class ArticleMappingConfig
             Slug = article.Slug,
             CoverImageUrl = article.CoverImageUrl,
             Status = article.Status,
-            PublishedAt = article.PublishedAt
+            PublishedAt = article.PublishedAt,
+            Topics = article.ArticleTopics.Select(link => link.Topic).Where(topic => topic != null).Select(TopicMappingConfig.ToSummaryResponse).ToList(),
+            Tags = article.ArticleTags.Select(link => link.Tag).Where(tag => tag != null).Select(TagMappingConfig.ToSummaryResponse).ToList()
         };
     }
 }

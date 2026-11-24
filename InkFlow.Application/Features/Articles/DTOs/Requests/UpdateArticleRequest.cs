@@ -6,4 +6,6 @@ public class UpdateArticleRequest
     public string? Subtitle { get; set; }
     public string Content { get; set; } = string.Empty;
     public string? CoverImageUrl { get; set; }
+    public IReadOnlyList<Guid> TopicIds { get; set; } = [];
+    public IReadOnlyList<Guid> TagIds { get; set; } = [];
 }
