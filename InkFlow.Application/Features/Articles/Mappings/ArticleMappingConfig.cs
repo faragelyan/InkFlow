@@ -1,4 +1,5 @@
 using InkFlow.Application.Features.Articles.DTOs.Responses;
+using InkFlow.Application.Common.Models;
 using InkFlow.Application.Features.Tags.DTOs.Responses;
 using InkFlow.Application.Features.Tags.Mappings;
 using InkFlow.Application.Features.Topics.DTOs.Responses;
@@ -9,7 +10,7 @@ namespace InkFlow.Application.Features.Articles.Mappings;
 
 public static class ArticleMappingConfig
 {
-    public static ArticleResponse ToResponse(Article article)
+    public static ArticleResponse ToResponse(Article article, ArticleEngagementSnapshot? engagement = null)
     {
         return new ArticleResponse
         {
@@ -26,11 +27,15 @@ public static class ArticleMappingConfig
             PublishedAt = article.PublishedAt,
             ArchivedAt = article.ArchivedAt,
             Topics = article.ArticleTopics.Select(link => link.Topic).Where(topic => topic != null).Select(TopicMappingConfig.ToSummaryResponse).ToList(),
-            Tags = article.ArticleTags.Select(link => link.Tag).Where(tag => tag != null).Select(TagMappingConfig.ToSummaryResponse).ToList()
+            Tags = article.ArticleTags.Select(link => link.Tag).Where(tag => tag != null).Select(TagMappingConfig.ToSummaryResponse).ToList(),
+            LikeCount = engagement?.LikeCount ?? 0,
+            BookmarkCount = engagement?.BookmarkCount ?? 0,
+            IsLiked = engagement?.IsLiked ?? false,
+            IsBookmarked = engagement?.IsBookmarked ?? false
         };
     }
 
-    public static ArticleSummaryResponse ToSummaryResponse(Article article)
+    public static ArticleSummaryResponse ToSummaryResponse(Article article, ArticleEngagementSnapshot? engagement = null)
     {
         return new ArticleSummaryResponse
         {
@@ -43,7 +48,11 @@ public static class ArticleMappingConfig
             Status = article.Status,
             PublishedAt = article.PublishedAt,
             Topics = article.ArticleTopics.Select(link => link.Topic).Where(topic => topic != null).Select(TopicMappingConfig.ToSummaryResponse).ToList(),
-            Tags = article.ArticleTags.Select(link => link.Tag).Where(tag => tag != null).Select(TagMappingConfig.ToSummaryResponse).ToList()
+            Tags = article.ArticleTags.Select(link => link.Tag).Where(tag => tag != null).Select(TagMappingConfig.ToSummaryResponse).ToList(),
+            LikeCount = engagement?.LikeCount ?? 0,
+            BookmarkCount = engagement?.BookmarkCount ?? 0,
+            IsLiked = engagement?.IsLiked ?? false,
+            IsBookmarked = engagement?.IsBookmarked ?? false
         };
     }
 }

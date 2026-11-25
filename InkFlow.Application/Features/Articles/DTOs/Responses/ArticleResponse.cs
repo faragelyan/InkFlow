@@ -20,4 +20,8 @@ public class ArticleResponse
     public DateTime? ArchivedAt { get; init; }
     public IReadOnlyList<TopicSummaryResponse> Topics { get; init; } = [];
     public IReadOnlyList<TagSummaryResponse> Tags { get; init; } = [];
+    public int LikeCount { get; init; }
+    public int BookmarkCount { get; init; }
+    public bool IsLiked { get; init; }
+    public bool IsBookmarked { get; init; }
 }

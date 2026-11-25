@@ -30,7 +30,8 @@ public class ArticlesController : ControllerBase
         [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        var result = await _articleService.GetPublishedAsync(authorId, pageNumber, pageSize, topicSlug, tagSlug, cancellationToken);
+        var viewerId = TryGetCurrentUserId(out var currentUserId) ? currentUserId : (Guid?)null;
+        var result = await _articleService.GetPublishedAsync(authorId, pageNumber, pageSize, topicSlug, tagSlug, viewerId, cancellationToken);
         return Ok(result.Value);
     }
 
@@ -39,7 +40,8 @@ public class ArticlesController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPublishedById(Guid articleId, CancellationToken cancellationToken)
     {
-        var result = await _articleService.GetPublishedByIdAsync(articleId, cancellationToken);
+        var viewerId = TryGetCurrentUserId(out var currentUserId) ? currentUserId : (Guid?)null;
+        var result = await _articleService.GetPublishedByIdAsync(articleId, viewerId, cancellationToken);
         if (result.IsFailure)
             return NotFound(new ProblemDetails { Title = "Article not found", Detail = result.Error });
 
@@ -83,6 +85,62 @@ public class ArticlesController : ControllerBase
 
         var result = await _articleService.GetMineAsync(authorId, pageNumber, pageSize, cancellationToken);
         return Ok(result.Value);
+    }
+
+    [Authorize]
+    [HttpGet("bookmarks/me")]
+    [ProducesResponseType(typeof(PaginationResponse<ArticleSummaryResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetMyBookmarks(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized();
+
+        var result = await _articleService.GetMyBookmarksAsync(userId, pageNumber, pageSize, cancellationToken);
+        return Ok(result.Value);
+    }
+
+    [Authorize]
+    [HttpPut("{articleId:guid}/like")]
+    [ProducesResponseType(typeof(ArticleEngagementResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public Task<IActionResult> Like(Guid articleId, CancellationToken cancellationToken)
+    {
+        return ChangeEngagementAsync(articleId, _articleService.LikeAsync, cancellationToken);
+    }
+
+    [Authorize]
+    [HttpDelete("{articleId:guid}/like")]
+    [ProducesResponseType(typeof(ArticleEngagementResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public Task<IActionResult> Unlike(Guid articleId, CancellationToken cancellationToken)
+    {
+        return ChangeEngagementAsync(articleId, _articleService.UnlikeAsync, cancellationToken);
+    }
+
+    [Authorize]
+    [HttpPut("{articleId:guid}/bookmark")]
+    [ProducesResponseType(typeof(ArticleEngagementResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public Task<IActionResult> Bookmark(Guid articleId, CancellationToken cancellationToken)
+    {
+        return ChangeEngagementAsync(articleId, _articleService.BookmarkAsync, cancellationToken);
+    }
+
+    [Authorize]
+    [HttpDelete("{articleId:guid}/bookmark")]
+    [ProducesResponseType(typeof(ArticleEngagementResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public Task<IActionResult> RemoveBookmark(Guid articleId, CancellationToken cancellationToken)
+    {
+        return ChangeEngagementAsync(articleId, _articleService.RemoveBookmarkAsync, cancellationToken);
     }
 
     [Authorize]
@@ -207,6 +265,21 @@ public class ArticlesController : ControllerBase
             Detail = error,
             Extensions = { ["errors"] = errors }
         });
+    }
+
+    private async Task<IActionResult> ChangeEngagementAsync(
+        Guid articleId,
+        Func<Guid, Guid, CancellationToken, Task<InkFlow.Application.Common.Results.Result<ArticleEngagementResponse>>> operation,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized();
+
+        var result = await operation(userId, articleId, cancellationToken);
+        if (result.IsFailure)
+            return NotFound(new ProblemDetails { Title = "Article not found", Detail = result.Error });
+
+        return Ok(result.Value);
     }
 
     private bool TryGetCurrentUserId(out Guid userId)

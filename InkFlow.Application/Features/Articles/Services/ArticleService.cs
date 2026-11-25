@@ -23,11 +23,14 @@ public class ArticleService : IArticleService
     private readonly IGenericRepository<Tag> _tags;
     private readonly IGenericRepository<ArticleTopic> _articleTopics;
     private readonly IGenericRepository<ArticleTag> _articleTags;
+    private readonly IGenericRepository<ArticleBookmark> _bookmarks;
+    private readonly IArticleEngagementRepository _engagement;
     private readonly IValidator<CreateArticleRequest> _createValidator;
     private readonly IValidator<UpdateArticleRequest> _updateValidator;
 
     public ArticleService(
         IUnitOfWork unitOfWork,
+        IArticleEngagementRepository engagement,
         IValidator<CreateArticleRequest> createValidator,
         IValidator<UpdateArticleRequest> updateValidator)
     {
@@ -38,6 +41,8 @@ public class ArticleService : IArticleService
         _tags = unitOfWork.GetRepository<Tag>();
         _articleTopics = unitOfWork.GetRepository<ArticleTopic>();
         _articleTags = unitOfWork.GetRepository<ArticleTag>();
+        _bookmarks = unitOfWork.GetRepository<ArticleBookmark>();
+        _engagement = engagement;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
     }
@@ -88,7 +93,8 @@ public class ArticleService : IArticleService
             return Result<ArticleResponse>.Failure(ArticleErrors.SaveFailed);
 
         await LoadTaxonomyAsync([article], cancellationToken);
-        return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article));
+        var engagement = await GetEngagementAsync([article], authorId, cancellationToken);
+        return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article, engagement[articleId]));
     }
 
     public async Task<Result<PaginationResponse<ArticleSummaryResponse>>> GetPublishedAsync(
@@ -97,6 +103,7 @@ public class ArticleService : IArticleService
         int pageSize = DefaultPageSize,
         string? topicSlug = null,
         string? tagSlug = null,
+        Guid? viewerId = null,
         CancellationToken cancellationToken = default)
     {
         var (normalizedPage, normalizedSize) = PaginationHelper.Normalize(pageNumber, pageSize, DefaultPageSize, MaximumPageSize);
@@ -115,11 +122,13 @@ public class ArticleService : IArticleService
             cancellationToken: cancellationToken);
 
         await LoadTaxonomyAsync(articles.Items, cancellationToken);
-        return Result<PaginationResponse<ArticleSummaryResponse>>.Success(MapPage(articles));
+        var engagement = await GetEngagementAsync(articles.Items, viewerId, cancellationToken);
+        return Result<PaginationResponse<ArticleSummaryResponse>>.Success(MapPage(articles, engagement));
     }
 
     public async Task<Result<ArticleResponse>> GetPublishedByIdAsync(
         Guid articleId,
+        Guid? viewerId = null,
         CancellationToken cancellationToken = default)
     {
         var article = await _articles.GetSingleAsync(
@@ -131,7 +140,8 @@ public class ArticleService : IArticleService
             return Result<ArticleResponse>.Failure(ArticleErrors.ArticleNotFound);
 
         await LoadTaxonomyAsync([article], cancellationToken);
-        return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article));
+        var engagement = await GetEngagementAsync([article], viewerId, cancellationToken);
+        return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article, engagement[articleId]));
     }
 
     public async Task<Result<PaginationResponse<ArticleSummaryResponse>>> GetMineAsync(
@@ -150,7 +160,8 @@ public class ArticleService : IArticleService
             cancellationToken: cancellationToken);
 
         await LoadTaxonomyAsync(articles.Items, cancellationToken);
-        return Result<PaginationResponse<ArticleSummaryResponse>>.Success(MapPage(articles));
+        var engagement = await GetEngagementAsync(articles.Items, authorId, cancellationToken);
+        return Result<PaginationResponse<ArticleSummaryResponse>>.Success(MapPage(articles, engagement));
     }
 
     public async Task<Result<ArticleResponse>> GetMineByIdAsync(
@@ -163,7 +174,46 @@ public class ArticleService : IArticleService
             return Result<ArticleResponse>.Failure(ArticleErrors.ArticleNotFound);
 
         await LoadTaxonomyAsync([article], cancellationToken);
-        return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article));
+        var engagement = await GetEngagementAsync([article], authorId, cancellationToken);
+        return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article, engagement[articleId]));
+    }
+
+    public async Task<Result<PaginationResponse<ArticleSummaryResponse>>> GetMyBookmarksAsync(
+        Guid userId,
+        int pageNumber = 1,
+        int pageSize = DefaultPageSize,
+        CancellationToken cancellationToken = default)
+    {
+        (pageNumber, pageSize) = PaginationHelper.Normalize(pageNumber, pageSize, DefaultPageSize, MaximumPageSize);
+        var bookmarks = await _bookmarks.GetPagedAsync(
+            pageNumber,
+            pageSize,
+            filter: bookmark => bookmark.UserId == userId && bookmark.Article.Status == ArticleStatus.Published,
+            orderBy: query => query.OrderByDescending(bookmark => bookmark.CreatedAt),
+            disableTracking: true,
+            cancellationToken: cancellationToken);
+
+        var articleIds = bookmarks.Items.Select(bookmark => bookmark.ArticleId).ToList();
+        var articles = articleIds.Count == 0
+            ? []
+            : await _articles.GetAllAsync(
+                article => articleIds.Contains(article.ArticleId) && article.Status == ArticleStatus.Published,
+                disableTracking: true,
+                cancellationToken: cancellationToken);
+        var articleLookup = articles.ToDictionary(article => article.ArticleId);
+        var orderedArticles = articleIds
+            .Where(articleLookup.ContainsKey)
+            .Select(articleId => articleLookup[articleId])
+            .ToList();
+
+        await LoadTaxonomyAsync(orderedArticles, cancellationToken);
+        var engagement = await GetEngagementAsync(orderedArticles, userId, cancellationToken);
+        var items = orderedArticles
+            .Select(article => ArticleMappingConfig.ToSummaryResponse(article, engagement[article.ArticleId]))
+            .ToList();
+
+        return Result<PaginationResponse<ArticleSummaryResponse>>.Success(
+            new PaginationResponse<ArticleSummaryResponse>(items, bookmarks.TotalCount, bookmarks.PageNumber, bookmarks.PageSize));
     }
 
     public async Task<Result<ArticleResponse>> UpdateAsync(
@@ -220,7 +270,28 @@ public class ArticleService : IArticleService
             return Result<ArticleResponse>.Failure(ArticleErrors.UpdateFailed);
 
         await LoadTaxonomyAsync([article], cancellationToken);
-        return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article));
+        var engagement = await GetEngagementAsync([article], authorId, cancellationToken);
+        return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article, engagement[articleId]));
+    }
+
+    public Task<Result<ArticleEngagementResponse>> LikeAsync(Guid userId, Guid articleId, CancellationToken cancellationToken = default)
+    {
+        return ChangeEngagementAsync(userId, articleId, isLike: true, isEnabled: true, cancellationToken);
+    }
+
+    public Task<Result<ArticleEngagementResponse>> UnlikeAsync(Guid userId, Guid articleId, CancellationToken cancellationToken = default)
+    {
+        return ChangeEngagementAsync(userId, articleId, isLike: true, isEnabled: false, cancellationToken);
+    }
+
+    public Task<Result<ArticleEngagementResponse>> BookmarkAsync(Guid userId, Guid articleId, CancellationToken cancellationToken = default)
+    {
+        return ChangeEngagementAsync(userId, articleId, isLike: false, isEnabled: true, cancellationToken);
+    }
+
+    public Task<Result<ArticleEngagementResponse>> RemoveBookmarkAsync(Guid userId, Guid articleId, CancellationToken cancellationToken = default)
+    {
+        return ChangeEngagementAsync(userId, articleId, isLike: false, isEnabled: false, cancellationToken);
     }
 
     public Task<Result<ArticleResponse>> PublishAsync(
@@ -268,7 +339,8 @@ public class ArticleService : IArticleService
         if (article.Status == targetStatus)
         {
             await LoadTaxonomyAsync([article], cancellationToken);
-            return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article));
+            var currentEngagement = await GetEngagementAsync([article], authorId, cancellationToken);
+            return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article, currentEngagement[articleId]));
         }
 
         if (targetStatus == ArticleStatus.Published)
@@ -296,7 +368,8 @@ public class ArticleService : IArticleService
             return Result<ArticleResponse>.Failure(ArticleErrors.UpdateFailed);
 
         await LoadTaxonomyAsync([article], cancellationToken);
-        return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article));
+        var engagement = await GetEngagementAsync([article], authorId, cancellationToken);
+        return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article, engagement[articleId]));
     }
 
     private Task<Article?> GetOwnedArticleAsync(
@@ -312,13 +385,64 @@ public class ArticleService : IArticleService
     }
 
     private static PaginationResponse<ArticleSummaryResponse> MapPage(
-        PaginationResponse<Article> articles)
+        PaginationResponse<Article> articles,
+        IReadOnlyDictionary<Guid, ArticleEngagementSnapshot> engagement)
     {
         return new PaginationResponse<ArticleSummaryResponse>(
-            articles.Items.Select(ArticleMappingConfig.ToSummaryResponse).ToList(),
+            articles.Items.Select(article => ArticleMappingConfig.ToSummaryResponse(article, engagement[article.ArticleId])).ToList(),
             articles.TotalCount,
             articles.PageNumber,
             articles.PageSize);
+    }
+
+    private async Task<Dictionary<Guid, ArticleEngagementSnapshot>> GetEngagementAsync(
+        IReadOnlyCollection<Article> articles,
+        Guid? viewerId,
+        CancellationToken cancellationToken)
+    {
+        var snapshots = await _engagement.GetSnapshotsAsync(
+            articles.Select(article => article.ArticleId).ToArray(), viewerId, cancellationToken);
+        return articles.ToDictionary(
+            article => article.ArticleId,
+            article => snapshots.GetValueOrDefault(article.ArticleId) ?? new ArticleEngagementSnapshot());
+    }
+
+    private async Task<Result<ArticleEngagementResponse>> ChangeEngagementAsync(
+        Guid userId,
+        Guid articleId,
+        bool isLike,
+        bool isEnabled,
+        CancellationToken cancellationToken)
+    {
+        if (!await _articles.ExistsAsync(
+                article => article.ArticleId == articleId && article.Status == ArticleStatus.Published,
+                cancellationToken: cancellationToken))
+            return Result<ArticleEngagementResponse>.Failure(ArticleErrors.ArticleNotFound);
+
+        if (isLike)
+        {
+            if (isEnabled)
+                await _engagement.EnsureLikeAsync(articleId, userId, cancellationToken);
+            else
+                await _engagement.RemoveLikeAsync(articleId, userId, cancellationToken);
+        }
+        else
+        {
+            if (isEnabled)
+                await _engagement.EnsureBookmarkAsync(articleId, userId, cancellationToken);
+            else
+                await _engagement.RemoveBookmarkAsync(articleId, userId, cancellationToken);
+        }
+
+        var snapshot = (await _engagement.GetSnapshotsAsync([articleId], userId, cancellationToken))[articleId];
+        return Result<ArticleEngagementResponse>.Success(new ArticleEngagementResponse
+        {
+            ArticleId = articleId,
+            LikeCount = snapshot.LikeCount,
+            BookmarkCount = snapshot.BookmarkCount,
+            IsLiked = snapshot.IsLiked,
+            IsBookmarked = snapshot.IsBookmarked
+        });
     }
 
     private async Task LoadTaxonomyAsync(IReadOnlyCollection<Article> articles, CancellationToken cancellationToken)
