@@ -9,4 +9,6 @@ public class AuthorProfileResponse
     public DateTime JoinedAt { get; init; }
     public int PublishedArticleCount { get; init; }
     public int FollowerCount { get; init; }
+    public int FollowingCount { get; init; }
+    public bool IsFollowing { get; init; }
 }

@@ -8,7 +8,9 @@ public static class AuthorMappingConfig
     public static AuthorProfileResponse ToProfileResponse(
         AppUser author,
         int publishedArticleCount,
-        int followerCount)
+        int followerCount,
+        int followingCount,
+        bool isFollowing)
     {
         return new AuthorProfileResponse
         {
@@ -18,7 +20,20 @@ public static class AuthorMappingConfig
             ProfileImageUrl = author.ProfileImageUrl,
             JoinedAt = author.CreatedAt,
             PublishedArticleCount = publishedArticleCount,
-            FollowerCount = followerCount
+            FollowerCount = followerCount,
+            FollowingCount = followingCount,
+            IsFollowing = isFollowing
+        };
+    }
+
+    public static AuthorConnectionResponse ToConnectionResponse(AppUser author, DateTime followedAt)
+    {
+        return new AuthorConnectionResponse
+        {
+            AuthorId = author.Id,
+            DisplayName = author.DisplayName,
+            ProfileImageUrl = author.ProfileImageUrl,
+            FollowedAt = followedAt
         };
     }
 

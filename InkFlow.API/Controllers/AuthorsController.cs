@@ -25,11 +25,66 @@ public class AuthorsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProfile(Guid authorId, CancellationToken cancellationToken)
     {
-        var result = await _authorService.GetProfileAsync(authorId, cancellationToken);
+        var viewerId = TryGetCurrentUserId(out var currentUserId) ? currentUserId : (Guid?)null;
+        var result = await _authorService.GetProfileAsync(authorId, cancellationToken, viewerId);
         if (result.IsFailure)
             return NotFound(new ProblemDetails { Title = "Author not found", Detail = result.Error });
 
         return Ok(result.Value);
+    }
+
+    [HttpGet("{authorId:guid}/followers")]
+    [ProducesResponseType(typeof(PaginationResponse<AuthorConnectionResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetFollowers(
+        Guid authorId,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _authorService.GetFollowersAsync(authorId, pageNumber, pageSize, cancellationToken);
+        if (result.IsFailure)
+            return NotFound(new ProblemDetails { Title = "Author not found", Detail = result.Error });
+
+        return Ok(result.Value);
+    }
+
+    [HttpGet("{authorId:guid}/following")]
+    [ProducesResponseType(typeof(PaginationResponse<AuthorConnectionResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetFollowing(
+        Guid authorId,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _authorService.GetFollowingAsync(authorId, pageNumber, pageSize, cancellationToken);
+        if (result.IsFailure)
+            return NotFound(new ProblemDetails { Title = "Author not found", Detail = result.Error });
+
+        return Ok(result.Value);
+    }
+
+    [Authorize]
+    [HttpPut("{authorId:guid}/follow")]
+    [ProducesResponseType(typeof(AuthorProfileResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public Task<IActionResult> Follow(Guid authorId, CancellationToken cancellationToken)
+    {
+        return ChangeFollowAsync(authorId, _authorService.FollowAsync, cancellationToken);
+    }
+
+    [Authorize]
+    [HttpDelete("{authorId:guid}/follow")]
+    [ProducesResponseType(typeof(AuthorProfileResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public Task<IActionResult> Unfollow(Guid authorId, CancellationToken cancellationToken)
+    {
+        return ChangeFollowAsync(authorId, _authorService.UnfollowAsync, cancellationToken);
     }
 
     [HttpGet("{authorId:guid}/articles")]
@@ -59,7 +114,7 @@ public class AuthorsController : ControllerBase
         if (!TryGetCurrentUserId(out var authorId))
             return Unauthorized();
 
-        var result = await _authorService.GetProfileAsync(authorId, cancellationToken);
+        var result = await _authorService.GetProfileAsync(authorId, cancellationToken, authorId);
         if (result.IsFailure)
             return NotFound(new ProblemDetails { Title = "Author not found", Detail = result.Error });
 
@@ -102,5 +157,25 @@ public class AuthorsController : ControllerBase
     private bool TryGetCurrentUserId(out Guid userId)
     {
         return Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
+    }
+
+    private async Task<IActionResult> ChangeFollowAsync(
+        Guid authorId,
+        Func<Guid, Guid, CancellationToken, Task<InkFlow.Application.Common.Results.Result<AuthorProfileResponse>>> operation,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out var followerId))
+            return Unauthorized();
+
+        var result = await operation(followerId, authorId, cancellationToken);
+        if (result.IsFailure)
+        {
+            if (result.Error == AuthorErrors.NotFound)
+                return NotFound(new ProblemDetails { Title = "Author not found", Detail = result.Error });
+
+            return BadRequest(new ProblemDetails { Title = "Follow operation failed", Detail = result.Error });
+        }
+
+        return Ok(result.Value);
     }
 }

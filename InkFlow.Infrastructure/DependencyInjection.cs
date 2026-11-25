@@ -82,6 +82,7 @@ public static class DependencyInjection
         // Repository & Services
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IArticleEngagementRepository, ArticleEngagementRepository>();
+        services.AddScoped<IFollowRepository, FollowRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IJwtProvider, JwtProvider>();
         services.AddScoped<IAuthService, AuthService>();

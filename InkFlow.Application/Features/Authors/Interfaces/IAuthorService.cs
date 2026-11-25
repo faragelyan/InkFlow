@@ -7,7 +7,7 @@ namespace InkFlow.Application.Features.Authors.Interfaces;
 
 public interface IAuthorService
 {
-    Task<Result<AuthorProfileResponse>> GetProfileAsync(Guid authorId, CancellationToken cancellationToken = default);
+    Task<Result<AuthorProfileResponse>> GetProfileAsync(Guid authorId, CancellationToken cancellationToken = default, Guid? viewerId = null);
 
     Task<Result<AuthorProfileResponse>> UpdateProfileAsync(
         Guid authorId,
@@ -15,6 +15,21 @@ public interface IAuthorService
         CancellationToken cancellationToken = default);
 
     Task<Result<PaginationResponse<AuthorArticleResponse>>> GetPublishedArticlesAsync(
+        Guid authorId,
+        int pageNumber = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<AuthorProfileResponse>> FollowAsync(Guid followerId, Guid authorId, CancellationToken cancellationToken = default);
+    Task<Result<AuthorProfileResponse>> UnfollowAsync(Guid followerId, Guid authorId, CancellationToken cancellationToken = default);
+
+    Task<Result<PaginationResponse<AuthorConnectionResponse>>> GetFollowersAsync(
+        Guid authorId,
+        int pageNumber = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<PaginationResponse<AuthorConnectionResponse>>> GetFollowingAsync(
         Guid authorId,
         int pageNumber = 1,
         int pageSize = 10,
