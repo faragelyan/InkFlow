@@ -24,11 +24,13 @@ public class ArticlesController : ControllerBase
     [ProducesResponseType(typeof(PaginationResponse<ArticleSummaryResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPublished(
         [FromQuery] Guid? authorId,
+        [FromQuery] string? topicSlug,
+        [FromQuery] string? tagSlug,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        var result = await _articleService.GetPublishedAsync(authorId, pageNumber, pageSize, cancellationToken);
+        var result = await _articleService.GetPublishedAsync(authorId, pageNumber, pageSize, topicSlug, tagSlug, cancellationToken);
         return Ok(result.Value);
     }
 
@@ -48,6 +50,7 @@ public class ArticlesController : ControllerBase
     [HttpPost]
     [ProducesResponseType(typeof(ArticleResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Create(
         [FromBody] CreateArticleRequest request,
@@ -186,11 +189,17 @@ public class ArticlesController : ControllerBase
 
     private IActionResult MapWriteFailure(string? error, IReadOnlyList<string> errors)
     {
+        if (error == ArticleErrors.AuthorNotFound)
+            return NotFound(new ProblemDetails { Title = "Author not found", Detail = error });
+
         if (error == ArticleErrors.ArticleNotFound)
             return NotFound(new ProblemDetails { Title = "Article not found", Detail = error });
 
         if (error == ArticleErrors.ArticleUnavailable)
             return Conflict(new ProblemDetails { Title = "Article status conflict", Detail = error });
+
+        if (error is ArticleErrors.SaveFailed or ArticleErrors.UpdateFailed)
+            return Problem(statusCode: StatusCodes.Status500InternalServerError, detail: error);
 
         return BadRequest(new ProblemDetails
         {

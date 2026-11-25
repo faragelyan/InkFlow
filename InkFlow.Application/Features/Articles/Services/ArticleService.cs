@@ -73,16 +73,21 @@ public class ArticleService : IArticleService
             Status = ArticleStatus.Draft
         };
 
-        var taxonomyResult = await ResolveTaxonomyAsync(request.TopicIds, request.TagIds, cancellationToken);
+        var taxonomyResult = await ResolveTaxonomyAsync(request.TopicIds ?? [], request.TagIds ?? [], cancellationToken);
         if (taxonomyResult.Error is not null)
             return Result<ArticleResponse>.Failure(taxonomyResult.Error);
 
         if (!await _articles.AddAsync(article, cancellationToken)
-            || !await _articleTopics.AddRangeAsync(taxonomyResult.Topics.Select(topicId => new ArticleTopic { ArticleId = articleId, TopicId = topicId }), cancellationToken)
-            || !await _articleTags.AddRangeAsync(taxonomyResult.Tags.Select(tagId => new ArticleTag { ArticleId = articleId, TagId = tagId }), cancellationToken))
+            || (taxonomyResult.Topics.Count > 0 && !await _articleTopics.AddRangeAsync(
+                taxonomyResult.Topics.Select(topicId => new ArticleTopic { ArticleId = articleId, TopicId = topicId }), cancellationToken))
+            || (taxonomyResult.Tags.Count > 0 && !await _articleTags.AddRangeAsync(
+                taxonomyResult.Tags.Select(tagId => new ArticleTag { ArticleId = articleId, TagId = tagId }), cancellationToken)))
             return Result<ArticleResponse>.Failure(ArticleErrors.SaveFailed);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        if (await _unitOfWork.SaveChangesAsync(cancellationToken) < 1)
+            return Result<ArticleResponse>.Failure(ArticleErrors.SaveFailed);
+
+        await LoadTaxonomyAsync([article], cancellationToken);
         return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article));
     }
 
@@ -90,21 +95,27 @@ public class ArticleService : IArticleService
         Guid? authorId,
         int pageNumber = 1,
         int pageSize = DefaultPageSize,
+        string? topicSlug = null,
+        string? tagSlug = null,
         CancellationToken cancellationToken = default)
     {
-        var (normalizedPage, normalizedSize) = NormalizePaging(pageNumber, pageSize);
+        var (normalizedPage, normalizedSize) = PaginationHelper.Normalize(pageNumber, pageSize, DefaultPageSize, MaximumPageSize);
+        var normalizedTopicSlug = NormalizeOptionalText(topicSlug)?.ToLowerInvariant();
+        var normalizedTagSlug = NormalizeOptionalText(tagSlug)?.ToLowerInvariant();
         var articles = await _articles.GetPagedAsync(
             pageNumber: normalizedPage,
             pageSize: normalizedSize,
             filter: article => article.Status == ArticleStatus.Published
-                && (authorId == null || article.UserId == authorId.Value),
+                && (authorId == null || article.UserId == authorId.Value)
+                && (normalizedTopicSlug == null || article.ArticleTopics.Any(link => link.Topic.Slug == normalizedTopicSlug))
+                && (normalizedTagSlug == null || article.ArticleTags.Any(link => link.Tag.Slug == normalizedTagSlug)),
             orderBy: query => query.OrderByDescending(article => article.PublishedAt)
                 .ThenByDescending(article => article.CreatedAt),
             disableTracking: true,
             cancellationToken: cancellationToken);
 
-        return Result<PaginationResponse<ArticleSummaryResponse>>.Success(
-            MapPage(articles));
+        await LoadTaxonomyAsync(articles.Items, cancellationToken);
+        return Result<PaginationResponse<ArticleSummaryResponse>>.Success(MapPage(articles));
     }
 
     public async Task<Result<ArticleResponse>> GetPublishedByIdAsync(
@@ -116,9 +127,11 @@ public class ArticleService : IArticleService
             disableTracking: true,
             cancellationToken: cancellationToken);
 
-        return article is null
-            ? Result<ArticleResponse>.Failure(ArticleErrors.ArticleNotFound)
-            : Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article));
+        if (article is null)
+            return Result<ArticleResponse>.Failure(ArticleErrors.ArticleNotFound);
+
+        await LoadTaxonomyAsync([article], cancellationToken);
+        return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article));
     }
 
     public async Task<Result<PaginationResponse<ArticleSummaryResponse>>> GetMineAsync(
@@ -127,7 +140,7 @@ public class ArticleService : IArticleService
         int pageSize = DefaultPageSize,
         CancellationToken cancellationToken = default)
     {
-        var (normalizedPage, normalizedSize) = NormalizePaging(pageNumber, pageSize);
+        var (normalizedPage, normalizedSize) = PaginationHelper.Normalize(pageNumber, pageSize, DefaultPageSize, MaximumPageSize);
         var articles = await _articles.GetPagedAsync(
             pageNumber: normalizedPage,
             pageSize: normalizedSize,
@@ -136,8 +149,8 @@ public class ArticleService : IArticleService
             disableTracking: true,
             cancellationToken: cancellationToken);
 
-        return Result<PaginationResponse<ArticleSummaryResponse>>.Success(
-            MapPage(articles));
+        await LoadTaxonomyAsync(articles.Items, cancellationToken);
+        return Result<PaginationResponse<ArticleSummaryResponse>>.Success(MapPage(articles));
     }
 
     public async Task<Result<ArticleResponse>> GetMineByIdAsync(
@@ -146,9 +159,11 @@ public class ArticleService : IArticleService
         CancellationToken cancellationToken = default)
     {
         var article = await GetOwnedArticleAsync(authorId, articleId, disableTracking: true, cancellationToken);
-        return article is null
-            ? Result<ArticleResponse>.Failure(ArticleErrors.ArticleNotFound)
-            : Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article));
+        if (article is null)
+            return Result<ArticleResponse>.Failure(ArticleErrors.ArticleNotFound);
+
+        await LoadTaxonomyAsync([article], cancellationToken);
+        return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article));
     }
 
     public async Task<Result<ArticleResponse>> UpdateAsync(
@@ -174,25 +189,37 @@ public class ArticleService : IArticleService
         article.Content = request.Content.Trim();
         article.CoverImageUrl = NormalizeOptionalText(request.CoverImageUrl);
 
-        var taxonomyResult = await ResolveTaxonomyAsync(request.TopicIds, request.TagIds, cancellationToken);
+        var taxonomyResult = await ResolveTaxonomyAsync(request.TopicIds ?? [], request.TagIds ?? [], cancellationToken);
         if (taxonomyResult.Error is not null)
             return Result<ArticleResponse>.Failure(taxonomyResult.Error);
 
         var existingTopics = await _articleTopics.GetAllAsync(link => link.ArticleId == articleId, cancellationToken: cancellationToken);
         var existingTags = await _articleTags.GetAllAsync(link => link.ArticleId == articleId, cancellationToken: cancellationToken);
 
-        if (existingTopics.Count > 0)
-            await _articleTopics.DeleteRangeAsync(existingTopics, cancellationToken);
-        if (existingTags.Count > 0)
-            await _articleTags.DeleteRangeAsync(existingTags, cancellationToken);
+        var requestedTopicIds = taxonomyResult.Topics.ToHashSet();
+        var requestedTagIds = taxonomyResult.Tags.ToHashSet();
+        var removedTopics = existingTopics.Where(link => !requestedTopicIds.Contains(link.TopicId)).ToList();
+        var removedTags = existingTags.Where(link => !requestedTagIds.Contains(link.TagId)).ToList();
+        var existingTopicIds = existingTopics.Select(link => link.TopicId).ToHashSet();
+        var existingTagIds = existingTags.Select(link => link.TagId).ToHashSet();
+        var addedTopics = requestedTopicIds.Except(existingTopicIds)
+            .Select(topicId => new ArticleTopic { ArticleId = articleId, TopicId = topicId }).ToList();
+        var addedTags = requestedTagIds.Except(existingTagIds)
+            .Select(tagId => new ArticleTag { ArticleId = articleId, TagId = tagId }).ToList();
 
-        await _articleTopics.AddRangeAsync(taxonomyResult.Topics.Select(topicId => new ArticleTopic { ArticleId = articleId, TopicId = topicId }), cancellationToken);
-        await _articleTags.AddRangeAsync(taxonomyResult.Tags.Select(tagId => new ArticleTag { ArticleId = articleId, TagId = tagId }), cancellationToken);
+        if ((removedTopics.Count > 0 && !await _articleTopics.DeleteRangeAsync(removedTopics, cancellationToken))
+            || (removedTags.Count > 0 && !await _articleTags.DeleteRangeAsync(removedTags, cancellationToken))
+            || (addedTopics.Count > 0 && !await _articleTopics.AddRangeAsync(addedTopics, cancellationToken))
+            || (addedTags.Count > 0 && !await _articleTags.AddRangeAsync(addedTags, cancellationToken)))
+            return Result<ArticleResponse>.Failure(ArticleErrors.UpdateFailed);
 
         if (!await _articles.UpdateAsync(article, cancellationToken))
             return Result<ArticleResponse>.Failure(ArticleErrors.UpdateFailed);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        if (await _unitOfWork.SaveChangesAsync(cancellationToken) < 1)
+            return Result<ArticleResponse>.Failure(ArticleErrors.UpdateFailed);
+
+        await LoadTaxonomyAsync([article], cancellationToken);
         return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article));
     }
 
@@ -239,7 +266,10 @@ public class ArticleService : IArticleService
             return Result<ArticleResponse>.Failure(ArticleErrors.ArticleNotFound);
 
         if (article.Status == targetStatus)
+        {
+            await LoadTaxonomyAsync([article], cancellationToken);
             return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article));
+        }
 
         if (targetStatus == ArticleStatus.Published)
         {
@@ -262,7 +292,10 @@ public class ArticleService : IArticleService
         if (!await _articles.UpdateAsync(article, cancellationToken))
             return Result<ArticleResponse>.Failure(ArticleErrors.UpdateFailed);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        if (await _unitOfWork.SaveChangesAsync(cancellationToken) < 1)
+            return Result<ArticleResponse>.Failure(ArticleErrors.UpdateFailed);
+
+        await LoadTaxonomyAsync([article], cancellationToken);
         return Result<ArticleResponse>.Success(ArticleMappingConfig.ToResponse(article));
     }
 
@@ -288,14 +321,43 @@ public class ArticleService : IArticleService
             articles.PageSize);
     }
 
-    private static (int PageNumber, int PageSize) NormalizePaging(int pageNumber, int pageSize)
+    private async Task LoadTaxonomyAsync(IReadOnlyCollection<Article> articles, CancellationToken cancellationToken)
     {
-        pageSize = Math.Clamp(pageSize, 1, MaximumPageSize);
-        var maxPageNumber = (int)Math.Min(
-            int.MaxValue,
-            (long)int.MaxValue / pageSize + 1);
-        pageNumber = Math.Clamp(pageNumber, 1, maxPageNumber);
-        return (pageNumber, pageSize);
+        if (articles.Count == 0)
+            return;
+
+        var articleIds = articles.Select(article => article.ArticleId).ToList();
+        var topicLinks = await _articleTopics.GetAllAsync(
+            link => articleIds.Contains(link.ArticleId), cancellationToken: cancellationToken);
+        var tagLinks = await _articleTags.GetAllAsync(
+            link => articleIds.Contains(link.ArticleId), cancellationToken: cancellationToken);
+        var topicIds = topicLinks.Select(link => link.TopicId).Distinct().ToList();
+        var tagIds = tagLinks.Select(link => link.TagId).Distinct().ToList();
+        var topics = topicIds.Count == 0
+            ? []
+            : await _topics.GetAllAsync(topic => topicIds.Contains(topic.TopicId), disableTracking: true, cancellationToken: cancellationToken);
+        var tags = tagIds.Count == 0
+            ? []
+            : await _tags.GetAllAsync(tag => tagIds.Contains(tag.TagId), disableTracking: true, cancellationToken: cancellationToken);
+        var topicLookup = topics.ToDictionary(topic => topic.TopicId);
+        var tagLookup = tags.ToDictionary(tag => tag.TagId);
+        foreach (var article in articles)
+        {
+            article.ArticleTopics = topicLinks
+                .Where(link => link.ArticleId == article.ArticleId && topicLookup.ContainsKey(link.TopicId))
+                .Select(link =>
+                {
+                    link.Topic = topicLookup[link.TopicId];
+                    return link;
+                }).ToList();
+            article.ArticleTags = tagLinks
+                .Where(link => link.ArticleId == article.ArticleId && tagLookup.ContainsKey(link.TagId))
+                .Select(link =>
+                {
+                    link.Tag = tagLookup[link.TagId];
+                    return link;
+                }).ToList();
+        }
     }
 
     private static string? NormalizeOptionalText(string? value)
@@ -334,17 +396,17 @@ public class ArticleService : IArticleService
         if (distinctTagIds.Count > 10)
             return ([], [], ArticleErrors.TooManyTags);
 
-        foreach (var topicId in distinctTopicIds)
-        {
-            if (!await _topics.ExistsAsync(topic => topic.TopicId == topicId, cancellationToken: cancellationToken))
-                return ([], [], ArticleErrors.InvalidTopics);
-        }
+        var existingTopics = distinctTopicIds.Count == 0
+            ? []
+            : await _topics.GetAllAsync(topic => distinctTopicIds.Contains(topic.TopicId), disableTracking: true, cancellationToken: cancellationToken);
+        if (existingTopics.Count != distinctTopicIds.Count)
+            return ([], [], ArticleErrors.InvalidTopics);
 
-        foreach (var tagId in distinctTagIds)
-        {
-            if (!await _tags.ExistsAsync(tag => tag.TagId == tagId, cancellationToken: cancellationToken))
-                return ([], [], ArticleErrors.InvalidTags);
-        }
+        var existingTags = distinctTagIds.Count == 0
+            ? []
+            : await _tags.GetAllAsync(tag => distinctTagIds.Contains(tag.TagId), disableTracking: true, cancellationToken: cancellationToken);
+        if (existingTags.Count != distinctTagIds.Count)
+            return ([], [], ArticleErrors.InvalidTags);
 
         return (distinctTopicIds, distinctTagIds, null);
     }

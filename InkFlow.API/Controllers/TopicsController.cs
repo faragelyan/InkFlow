@@ -43,12 +43,13 @@ public class TopicsController : ControllerBase
         return Ok(result.Value);
     }
 
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ProducesResponseType(typeof(TopicResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Create([FromBody] CreateTopicRequest request, CancellationToken cancellationToken)
     {
         var result = await _topicService.CreateAsync(request, cancellationToken);
@@ -58,13 +59,14 @@ public class TopicsController : ControllerBase
         return CreatedAtAction(nameof(GetBySlug), new { slug = result.Value.Slug }, result.Value);
     }
 
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [HttpPut("{topicId:guid}")]
     [ProducesResponseType(typeof(TopicResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Update(Guid topicId, [FromBody] UpdateTopicRequest request, CancellationToken cancellationToken)
     {
         var result = await _topicService.UpdateAsync(topicId, request, cancellationToken);
@@ -74,12 +76,13 @@ public class TopicsController : ControllerBase
         return Ok(result.Value);
     }
 
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{topicId:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Delete(Guid topicId, CancellationToken cancellationToken)
     {
         var result = await _topicService.DeleteAsync(topicId, cancellationToken);
@@ -88,7 +91,10 @@ public class TopicsController : ControllerBase
             if (result.Error == TopicErrors.TopicNotFound)
                 return NotFound(new ProblemDetails { Title = "Topic not found", Detail = result.Error });
 
-            return Conflict(new ProblemDetails { Title = "Topic delete conflict", Detail = result.Error });
+            if (result.Error == TopicErrors.TopicInUse)
+                return Conflict(new ProblemDetails { Title = "Topic delete conflict", Detail = result.Error });
+
+            return Problem(statusCode: StatusCodes.Status500InternalServerError, detail: result.Error);
         }
 
         return NoContent();
@@ -101,6 +107,9 @@ public class TopicsController : ControllerBase
 
         if (error is TopicErrors.DuplicateName or TopicErrors.DuplicateSlug or TopicErrors.TopicInUse)
             return Conflict(new ProblemDetails { Title = "Topic operation conflict", Detail = error, Extensions = { ["errors"] = errors } });
+
+        if (error is TopicErrors.SaveFailed or TopicErrors.UpdateFailed or TopicErrors.DeleteFailed)
+            return Problem(statusCode: StatusCodes.Status500InternalServerError, detail: error);
 
         return BadRequest(new ProblemDetails { Title = "Topic operation failed", Detail = error, Extensions = { ["errors"] = errors } });
     }

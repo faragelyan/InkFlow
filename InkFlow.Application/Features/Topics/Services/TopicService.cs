@@ -1,6 +1,5 @@
-using System.Globalization;
-using System.Text;
 using FluentValidation;
+using InkFlow.Application.Common;
 using InkFlow.Application.Common.Models;
 using InkFlow.Application.Common.Results;
 using InkFlow.Application.Features.Topics.DTOs.Requests;
@@ -15,8 +14,6 @@ namespace InkFlow.Application.Features.Topics.Services;
 
 public class TopicService : ITopicService
 {
-    private const int MaximumPageSize = 50;
-
     private readonly IUnitOfWork _unitOfWork;
     private readonly IGenericRepository<Topic> _topics;
     private readonly IGenericRepository<ArticleTopic> _articleTopics;
@@ -41,8 +38,7 @@ public class TopicService : ITopicService
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        pageNumber = pageNumber < 1 ? 1 : pageNumber;
-        pageSize = pageSize < 1 ? 10 : Math.Min(pageSize, MaximumPageSize);
+        (pageNumber, pageSize) = PaginationHelper.Normalize(pageNumber, pageSize);
 
         var normalizedSearch = search?.Trim();
         var page = await _topics.GetPagedAsync(
@@ -58,7 +54,7 @@ public class TopicService : ITopicService
         foreach (var topic in page.Items)
         {
             var count = await _articleTopics.CountAsync(
-                link => link.TopicId == topic.TopicId,
+                link => link.TopicId == topic.TopicId && link.Article.Status == ArticleStatus.Published,
                 cancellationToken: cancellationToken);
             items.Add(TopicMappingConfig.ToResponse(topic, count));
         }
@@ -77,7 +73,9 @@ public class TopicService : ITopicService
         if (topic is null)
             return Result<TopicResponse>.Failure(TopicErrors.TopicNotFound);
 
-        var count = await _articleTopics.CountAsync(link => link.TopicId == topic.TopicId, cancellationToken: cancellationToken);
+        var count = await _articleTopics.CountAsync(
+            link => link.TopicId == topic.TopicId && link.Article.Status == ArticleStatus.Published,
+            cancellationToken: cancellationToken);
         return Result<TopicResponse>.Success(TopicMappingConfig.ToResponse(topic, count));
     }
 
@@ -95,7 +93,7 @@ public class TopicService : ITopicService
         {
             TopicId = Guid.NewGuid(),
             Name = name,
-            Slug = CreateUniqueBaseSlug(name)
+            Slug = SlugGenerator.Create(name, 100, "topic")
         };
 
         if (await _topics.ExistsAsync(item => item.Slug == topic.Slug, cancellationToken: cancellationToken))
@@ -123,7 +121,7 @@ public class TopicService : ITopicService
             return Result<TopicResponse>.Failure(TopicErrors.DuplicateName);
 
         topic.Name = name;
-        topic.Slug = CreateUniqueBaseSlug(name);
+        topic.Slug = SlugGenerator.Create(name, 100, "topic");
 
         if (await _topics.ExistsAsync(item => item.TopicId != topicId && item.Slug == topic.Slug, cancellationToken: cancellationToken))
             return Result<TopicResponse>.Failure(TopicErrors.DuplicateSlug);
@@ -152,23 +150,4 @@ public class TopicService : ITopicService
         return Result.Success();
     }
 
-    private static string CreateUniqueBaseSlug(string value)
-    {
-        var normalized = value.Normalize(NormalizationForm.FormD);
-        var builder = new StringBuilder();
-
-        foreach (var character in normalized)
-        {
-            var category = CharUnicodeInfo.GetUnicodeCategory(character);
-            if (category != UnicodeCategory.NonSpacingMark)
-                builder.Append(char.IsLetterOrDigit(character) ? char.ToLowerInvariant(character) : '-');
-        }
-
-        var slug = builder.ToString().Normalize(NormalizationForm.FormC);
-        while (slug.Contains("--", StringComparison.Ordinal))
-            slug = slug.Replace("--", "-", StringComparison.Ordinal);
-
-        slug = slug.Trim('-');
-        return string.IsNullOrWhiteSpace(slug) ? "topic" : slug[..Math.Min(slug.Length, 100)].TrimEnd('-');
-    }
 }

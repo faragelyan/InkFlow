@@ -16,6 +16,8 @@ public interface IArticleService
         Guid? authorId,
         int pageNumber = 1,
         int pageSize = 10,
+        string? topicSlug = null,
+        string? tagSlug = null,
         CancellationToken cancellationToken = default);
 
     Task<Result<ArticleResponse>> GetPublishedByIdAsync(Guid articleId, CancellationToken cancellationToken = default);

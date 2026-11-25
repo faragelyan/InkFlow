@@ -39,12 +39,13 @@ public class TagsController : ControllerBase
         return Ok(result.Value);
     }
 
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ProducesResponseType(typeof(TagResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Create([FromBody] CreateTagRequest request, CancellationToken cancellationToken)
     {
         var result = await _tagService.CreateAsync(request, cancellationToken);
@@ -54,13 +55,14 @@ public class TagsController : ControllerBase
         return CreatedAtAction(nameof(GetBySlug), new { slug = result.Value.Slug }, result.Value);
     }
 
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [HttpPut("{tagId:guid}")]
     [ProducesResponseType(typeof(TagResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Update(Guid tagId, [FromBody] UpdateTagRequest request, CancellationToken cancellationToken)
     {
         var result = await _tagService.UpdateAsync(tagId, request, cancellationToken);
@@ -70,12 +72,13 @@ public class TagsController : ControllerBase
         return Ok(result.Value);
     }
 
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{tagId:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Delete(Guid tagId, CancellationToken cancellationToken)
     {
         var result = await _tagService.DeleteAsync(tagId, cancellationToken);
@@ -84,7 +87,10 @@ public class TagsController : ControllerBase
             if (result.Error == TagErrors.TagNotFound)
                 return NotFound(new ProblemDetails { Title = "Tag not found", Detail = result.Error });
 
-            return Conflict(new ProblemDetails { Title = "Tag delete conflict", Detail = result.Error });
+            if (result.Error == TagErrors.TagInUse)
+                return Conflict(new ProblemDetails { Title = "Tag delete conflict", Detail = result.Error });
+
+            return Problem(statusCode: StatusCodes.Status500InternalServerError, detail: result.Error);
         }
 
         return NoContent();
@@ -97,6 +103,9 @@ public class TagsController : ControllerBase
 
         if (error is TagErrors.DuplicateName or TagErrors.DuplicateSlug or TagErrors.TagInUse)
             return Conflict(new ProblemDetails { Title = "Tag operation conflict", Detail = error, Extensions = { ["errors"] = errors } });
+
+        if (error is TagErrors.SaveFailed or TagErrors.UpdateFailed or TagErrors.DeleteFailed)
+            return Problem(statusCode: StatusCodes.Status500InternalServerError, detail: error);
 
         return BadRequest(new ProblemDetails { Title = "Tag operation failed", Detail = error, Extensions = { ["errors"] = errors } });
     }

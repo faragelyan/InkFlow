@@ -26,10 +26,12 @@ public class UpdateArticleValidator : AbstractValidator<UpdateArticleRequest>
             .WithMessage("Cover image URL must be an absolute HTTP or HTTPS URL.");
 
         RuleFor(request => request.TopicIds)
-            .Must(ids => ids.Distinct().Count() <= 3).WithMessage("An article cannot have more than 3 topics.");
+            .NotNull().WithMessage("Topic IDs cannot be null.")
+            .Must(ids => ids is not null && ids.Distinct().Count() <= 3).WithMessage("An article cannot have more than 3 topics.");
 
         RuleFor(request => request.TagIds)
-            .Must(ids => ids.Distinct().Count() <= 10).WithMessage("An article cannot have more than 10 tags.");
+            .NotNull().WithMessage("Tag IDs cannot be null.")
+            .Must(ids => ids is not null && ids.Distinct().Count() <= 10).WithMessage("An article cannot have more than 10 tags.");
     }
 
     private static bool BeAbsoluteHttpUrl(string? value)

@@ -68,7 +68,8 @@ public class AuthorService : IAuthorService
         if (!await _users.UpdateAsync(author, cancellationToken))
             return Result<AuthorProfileResponse>.Failure(AuthorErrors.ProfileUpdateFailed);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        if (await _unitOfWork.SaveChangesAsync(cancellationToken) < 1)
+            return Result<AuthorProfileResponse>.Failure(AuthorErrors.ProfileUpdateFailed);
 
         return Result<AuthorProfileResponse>.Success(
             await MapProfileAsync(author, cancellationToken));
@@ -85,8 +86,7 @@ public class AuthorService : IAuthorService
         if (author is null || !author.IsActive)
             return Result<PaginationResponse<AuthorArticleResponse>>.Failure(AuthorErrors.NotFound);
 
-        pageNumber = Math.Max(1, pageNumber);
-        pageSize = Math.Clamp(pageSize, 1, 50);
+        (pageNumber, pageSize) = PaginationHelper.Normalize(pageNumber, pageSize);
 
         var articles = await _articles.GetPagedAsync(
             pageNumber: pageNumber,
