@@ -12,6 +12,7 @@ using InkFlow.Application.Features.Auth.Interfaces;
 using InkFlow.Domain;
 using InkFlow.Infrastructure.Authentication;
 using InkFlow.Infrastructure.ExternalServices.Email;
+using InkFlow.Infrastructure.Identity;
 using InkFlow.Infrastructure.Persistence.Context;
 using InkFlow.Infrastructure.Persistence.Repositories;
 using InkFlow.Infrastructure.Persistence.UnitOfWork;
@@ -88,6 +89,7 @@ public static class DependencyInjection
         services.AddScoped<IJwtProvider, JwtProvider>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IEmailService, EmailService>();
+        services.AddScoped<IdentitySeeder>();
 
         return services;
     }
