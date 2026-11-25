@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.Data.SqlClient;
 using InkFlow.Application.Common.Models;
 using InkFlow.Application.Interfaces.Repositories;
@@ -62,12 +63,13 @@ public sealed class ArticleEngagementRepository : IArticleEngagementRepository
             });
     }
 
-    public Task EnsureLikeAsync(Guid articleId, Guid userId, CancellationToken cancellationToken = default)
+    public Task<bool> EnsureLikeAsync(Guid articleId, Guid userId, Notification? notification = null, CancellationToken cancellationToken = default)
     {
-        return EnsureExistsAsync(
+        return EnsureLikeExistsAsync(
             _context.ArticleLikes,
             new ArticleLike { ArticleId = articleId, UserId = userId },
             like => like.ArticleId == articleId && like.UserId == userId,
+            notification,
             cancellationToken);
     }
 
@@ -114,6 +116,38 @@ public sealed class ArticleEngagementRepository : IArticleEngagementRepository
             entry.State = EntityState.Detached;
             if (await set.AsNoTracking().AnyAsync(predicate, cancellationToken))
                 return;
+
+            throw;
+        }
+    }
+
+    private async Task<bool> EnsureLikeExistsAsync(
+        DbSet<ArticleLike> set,
+        ArticleLike like,
+        System.Linq.Expressions.Expression<Func<ArticleLike, bool>> predicate,
+        Notification? notification,
+        CancellationToken cancellationToken)
+    {
+        if (await set.AnyAsync(predicate, cancellationToken))
+            return false;
+
+        var entry = await set.AddAsync(like, cancellationToken);
+        EntityEntry<Notification>? notificationEntry = null;
+        if (notification is not null)
+            notificationEntry = await _context.Notifications.AddAsync(notification, cancellationToken);
+
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException exception) when (IsDuplicateKeyViolation(exception))
+        {
+            entry.State = EntityState.Detached;
+            if (notificationEntry is not null)
+                notificationEntry.State = EntityState.Detached;
+            if (await set.AsNoTracking().AnyAsync(predicate, cancellationToken))
+                return false;
 
             throw;
         }

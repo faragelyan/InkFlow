@@ -12,4 +12,6 @@ public class CommentResponse
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }
     public int ReplyCount { get; init; }
+    public int LikeCount { get; init; }
+    public bool IsLiked { get; init; }
 }

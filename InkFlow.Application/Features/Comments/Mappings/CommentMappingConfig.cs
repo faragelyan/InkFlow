@@ -1,11 +1,16 @@
 using InkFlow.Application.Features.Comments.DTOs.Responses;
+using InkFlow.Application.Common.Models;
 using InkFlow.Domain;
 
 namespace InkFlow.Application.Features.Comments.Mappings;
 
 public static class CommentMappingConfig
 {
-    public static CommentResponse ToResponse(Comment comment, string authorDisplayName, int replyCount)
+    public static CommentResponse ToResponse(
+        Comment comment,
+        string authorDisplayName,
+        int replyCount,
+        CommentEngagementSnapshot? engagement = null)
     {
         return new CommentResponse
         {
@@ -18,7 +23,9 @@ public static class CommentMappingConfig
             IsDeleted = comment.IsDeleted,
             CreatedAt = comment.CreatedAt,
             UpdatedAt = comment.UpdatedAt,
-            ReplyCount = replyCount
+            ReplyCount = replyCount,
+            LikeCount = engagement?.LikeCount ?? 0,
+            IsLiked = engagement?.IsLiked ?? false
         };
     }
 }

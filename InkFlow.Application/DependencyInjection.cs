@@ -11,6 +11,8 @@ using InkFlow.Application.Features.Tags.Interfaces;
 using InkFlow.Application.Features.Tags.Services;
 using InkFlow.Application.Features.Comments.Interfaces;
 using InkFlow.Application.Features.Comments.Services;
+using InkFlow.Application.Features.Notifications.Interfaces;
+using InkFlow.Application.Features.Notifications.Services;
 
 namespace InkFlow.Application;
 
@@ -24,6 +26,7 @@ public static class DependencyInjection
         services.AddScoped<ITopicService, TopicService>();
         services.AddScoped<ITagService, TagService>();
         services.AddScoped<ICommentService, CommentService>();
+        services.AddScoped<INotificationService, NotificationService>();
         return services;
     }
 }

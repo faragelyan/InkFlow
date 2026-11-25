@@ -29,7 +29,8 @@ public class CommentsController : ControllerBase
         [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        var result = await _commentService.GetArticleCommentsAsync(articleId, pageNumber, pageSize, cancellationToken);
+        var viewerId = TryGetCurrentUserId(out var currentUserId) ? currentUserId : (Guid?)null;
+        var result = await _commentService.GetArticleCommentsAsync(articleId, pageNumber, pageSize, viewerId, cancellationToken);
         if (result.IsFailure)
             return NotFound(new ProblemDetails { Title = "Article not found", Detail = result.Error });
 
@@ -41,7 +42,8 @@ public class CommentsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid commentId, CancellationToken cancellationToken)
     {
-        var result = await _commentService.GetByIdAsync(commentId, cancellationToken);
+        var viewerId = TryGetCurrentUserId(out var currentUserId) ? currentUserId : (Guid?)null;
+        var result = await _commentService.GetByIdAsync(commentId, viewerId, cancellationToken);
         if (result.IsFailure)
             return NotFound(new ProblemDetails { Title = "Comment not found", Detail = result.Error });
 
@@ -57,11 +59,32 @@ public class CommentsController : ControllerBase
         [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        var result = await _commentService.GetRepliesAsync(commentId, pageNumber, pageSize, cancellationToken);
+        var viewerId = TryGetCurrentUserId(out var currentUserId) ? currentUserId : (Guid?)null;
+        var result = await _commentService.GetRepliesAsync(commentId, pageNumber, pageSize, viewerId, cancellationToken);
         if (result.IsFailure)
             return NotFound(new ProblemDetails { Title = "Comment not found", Detail = result.Error });
 
         return Ok(result.Value);
+    }
+
+    [Authorize]
+    [HttpPut("comments/{commentId:guid}/like")]
+    [ProducesResponseType(typeof(CommentResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public Task<IActionResult> Like(Guid commentId, CancellationToken cancellationToken)
+    {
+        return ChangeLikeAsync(commentId, _commentService.LikeAsync, cancellationToken);
+    }
+
+    [Authorize]
+    [HttpDelete("comments/{commentId:guid}/like")]
+    [ProducesResponseType(typeof(CommentResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public Task<IActionResult> Unlike(Guid commentId, CancellationToken cancellationToken)
+    {
+        return ChangeLikeAsync(commentId, _commentService.UnlikeAsync, cancellationToken);
     }
 
     [Authorize]
@@ -137,6 +160,21 @@ public class CommentsController : ControllerBase
             Detail = error,
             Extensions = { ["errors"] = errors }
         });
+    }
+
+    private async Task<IActionResult> ChangeLikeAsync(
+        Guid commentId,
+        Func<Guid, Guid, CancellationToken, Task<InkFlow.Application.Common.Results.Result<CommentResponse>>> operation,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized();
+
+        var result = await operation(userId, commentId, cancellationToken);
+        if (result.IsFailure)
+            return MapWriteFailure(result.Error, result.Errors);
+
+        return Ok(result.Value);
     }
 
     private bool TryGetCurrentUserId(out Guid userId)

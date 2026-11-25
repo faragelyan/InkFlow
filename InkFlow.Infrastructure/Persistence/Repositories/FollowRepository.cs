@@ -16,31 +16,37 @@ public sealed class FollowRepository : IFollowRepository
         _context = context;
     }
 
-    public async Task EnsureFollowingAsync(Guid followerId, Guid authorId, CancellationToken cancellationToken = default)
+    public async Task<bool> EnsureFollowingAsync(Guid followerId, Guid authorId, Notification? notification = null, CancellationToken cancellationToken = default)
     {
         var follows = _context.Follows;
         if (await follows.AnyAsync(
                 follow => follow.FollowerId == followerId && follow.FollowingId == authorId,
                 cancellationToken))
-            return;
+            return false;
 
         var entry = await follows.AddAsync(new Follow
         {
             FollowerId = followerId,
             FollowingId = authorId
         }, cancellationToken);
+        EntityEntry<Notification>? notificationEntry = null;
+        if (notification is not null)
+            notificationEntry = await _context.Notifications.AddAsync(notification, cancellationToken);
 
         try
         {
             await _context.SaveChangesAsync(cancellationToken);
+            return true;
         }
         catch (DbUpdateException exception) when (IsDuplicateKeyViolation(exception))
         {
             entry.State = EntityState.Detached;
+            if (notificationEntry is not null)
+                notificationEntry.State = EntityState.Detached;
             if (await follows.AsNoTracking().AnyAsync(
                     follow => follow.FollowerId == followerId && follow.FollowingId == authorId,
                     cancellationToken))
-                return;
+                return false;
 
             throw;
         }

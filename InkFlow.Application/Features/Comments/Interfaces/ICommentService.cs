@@ -11,15 +11,20 @@ public interface ICommentService
         Guid articleId,
         int pageNumber = 1,
         int pageSize = 10,
+        Guid? viewerId = null,
         CancellationToken cancellationToken = default);
 
     Task<Result<PaginationResponse<CommentResponse>>> GetRepliesAsync(
         Guid commentId,
         int pageNumber = 1,
         int pageSize = 10,
+        Guid? viewerId = null,
         CancellationToken cancellationToken = default);
 
-    Task<Result<CommentResponse>> GetByIdAsync(Guid commentId, CancellationToken cancellationToken = default);
+    Task<Result<CommentResponse>> GetByIdAsync(Guid commentId, Guid? viewerId = null, CancellationToken cancellationToken = default);
+
+    Task<Result<CommentResponse>> LikeAsync(Guid userId, Guid commentId, CancellationToken cancellationToken = default);
+    Task<Result<CommentResponse>> UnlikeAsync(Guid userId, Guid commentId, CancellationToken cancellationToken = default);
 
     Task<Result<CommentResponse>> CreateAsync(
         Guid userId,

@@ -414,24 +414,74 @@ public class ArticleService : IArticleService
         bool isEnabled,
         CancellationToken cancellationToken)
     {
-        if (!await _articles.ExistsAsync(
-                article => article.ArticleId == articleId && article.Status == ArticleStatus.Published,
-                cancellationToken: cancellationToken))
+        var targetArticle = await _articles.GetSingleAsync(
+            article => article.ArticleId == articleId && article.Status == ArticleStatus.Published,
+            disableTracking: true,
+            cancellationToken: cancellationToken);
+        if (targetArticle is null)
             return Result<ArticleEngagementResponse>.Failure(ArticleErrors.ArticleNotFound);
 
         if (isLike)
         {
             if (isEnabled)
-                await _engagement.EnsureLikeAsync(articleId, userId, cancellationToken);
+            {
+                var notification = targetArticle.UserId == userId
+                    ? null
+                    : new Notification
+                    {
+                        NotificationId = Guid.NewGuid(),
+                        NotificationType = NotificationType.ArticleLiked,
+                        Content = "Someone liked your article.",
+                        ReceiverUserId = targetArticle.UserId,
+                        ActorUserId = userId,
+                        ArticleId = articleId
+                    };
+                try
+                {
+                    await _engagement.EnsureLikeAsync(articleId, userId, notification, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception)
+                {
+                    return Result<ArticleEngagementResponse>.Failure(ArticleErrors.SaveFailed);
+                }
+            }
             else
-                await _engagement.RemoveLikeAsync(articleId, userId, cancellationToken);
+            {
+                try
+                {
+                    await _engagement.RemoveLikeAsync(articleId, userId, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception)
+                {
+                    return Result<ArticleEngagementResponse>.Failure(ArticleErrors.UpdateFailed);
+                }
+            }
         }
         else
         {
-            if (isEnabled)
-                await _engagement.EnsureBookmarkAsync(articleId, userId, cancellationToken);
-            else
-                await _engagement.RemoveBookmarkAsync(articleId, userId, cancellationToken);
+            try
+            {
+                if (isEnabled)
+                    await _engagement.EnsureBookmarkAsync(articleId, userId, cancellationToken);
+                else
+                    await _engagement.RemoveBookmarkAsync(articleId, userId, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                return Result<ArticleEngagementResponse>.Failure(ArticleErrors.UpdateFailed);
+            }
         }
 
         var snapshot = (await _engagement.GetSnapshotsAsync([articleId], userId, cancellationToken))[articleId];

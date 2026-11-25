@@ -123,7 +123,26 @@ public class AuthorService : IAuthorService
         if (follower is null || !follower.IsActive || author is null || !author.IsActive)
             return Result<AuthorProfileResponse>.Failure(AuthorErrors.NotFound);
 
-        await _followRepository.EnsureFollowingAsync(followerId, authorId, cancellationToken);
+        var notification = new Notification
+        {
+            NotificationId = Guid.NewGuid(),
+            NotificationType = NotificationType.NewFollower,
+            Content = $"{follower.DisplayName} started following you.",
+            ReceiverUserId = authorId,
+            ActorUserId = followerId
+        };
+        try
+        {
+            await _followRepository.EnsureFollowingAsync(followerId, authorId, notification, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return Result<AuthorProfileResponse>.Failure(AuthorErrors.FollowUpdateFailed);
+        }
         return Result<AuthorProfileResponse>.Success(await MapProfileAsync(author, cancellationToken, followerId));
     }
 
@@ -140,7 +159,19 @@ public class AuthorService : IAuthorService
         if (follower is null || !follower.IsActive || author is null || !author.IsActive)
             return Result<AuthorProfileResponse>.Failure(AuthorErrors.NotFound);
 
-        await _followRepository.RemoveFollowingAsync(followerId, authorId, cancellationToken);
+        try
+        {
+            await _followRepository.RemoveFollowingAsync(followerId, authorId, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return Result<AuthorProfileResponse>.Failure(AuthorErrors.FollowUpdateFailed);
+        }
+
         return Result<AuthorProfileResponse>.Success(await MapProfileAsync(author, cancellationToken, followerId));
     }
 
@@ -230,13 +261,20 @@ public class AuthorService : IAuthorService
             article => article.UserId == author.Id && article.Status == ArticleStatus.Published,
             cancellationToken: cancellationToken);
         var followerCount = await _follows.CountAsync(
-            follow => follow.FollowingId == author.Id,
+            follow => follow.FollowingId == author.Id
+                && follow.Follower.IsActive
+                && !follow.Follower.IsDeleted,
             cancellationToken: cancellationToken);
         var followingCount = await _follows.CountAsync(
-            follow => follow.FollowerId == author.Id,
+            follow => follow.FollowerId == author.Id
+                && follow.Following.IsActive
+                && !follow.Following.IsDeleted,
             cancellationToken: cancellationToken);
         var isFollowing = viewerId.HasValue && await _follows.ExistsAsync(
-            follow => follow.FollowerId == viewerId.Value && follow.FollowingId == author.Id,
+            follow => follow.FollowerId == viewerId.Value
+                && follow.FollowingId == author.Id
+                && follow.Follower.IsActive
+                && !follow.Follower.IsDeleted,
             cancellationToken: cancellationToken);
 
         return AuthorMappingConfig.ToProfileResponse(author, articleCount, followerCount, followingCount, isFollowing);
